@@ -6,11 +6,12 @@ import json
 import atexit
 import os
 import sqlite3
+from time import sleep
 
 debug = True
 
 if not debug:
-    PROJECT_OWNER = "cwtools"
+    PROJECT_OWNER = "abcdefgcwtools"
     REPO_NAME = "cwtools-ck3-config"
     URL_BASE = "https://api.github.com"
 else:
@@ -21,25 +22,6 @@ else:
 CK3_PATH = os.environ["CK3_PATH"]
 CWT_PATH = os.environ["CK3_PATH"]
 
-# DATABASE_PATH = "./scope_scraper.db"
-DATABASE_PATH = ":memory:"
-
-
-def init_database():
-    # Sometimes, its just easier to use sql to deal with multi-dimensional data.
-    conn = sqlite3.connect(DATABASE_PATH)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE folders
-        ''')
-    atexit.register(db_cleanup)
-
-
-def db_cleanup():
-    return
-
-
-def enumerate_ck3_directories(path):
-    return
 
 
 def split_folders(path):
@@ -48,12 +30,6 @@ def split_folders(path):
 
 
 def enumerate_files(path, folder_exclude_filter=None, file_ext_exclude_filter=None, file_name_exclude_filter=None):
-    def filter_list(filter_name, index):
-        """Sub-function to filter the list down"""
-        if not filter_name:
-            return working_list
-        return [f for f in working_list if os.path.splitext(f[2])[index] not in filter_name]
-
     # We could do this much much more efficiently, but this is a single use tool and its not worth the engineering
     # effort to be super elegant here. Thus, we remove many common things we don't want through hard coded multiple
     # passes.
@@ -94,7 +70,6 @@ def create_heiarchy(folders):
     """Creates a janky home-grown tree cobbled together from dictionaries.
         :param folders: A list of ordered sublists of folders that make up a directory path"""
     heiarch = dict()
-    working_dictionary = heiarch
     for f in folders:
         working_dictionary = heiarch
         for g in f:
@@ -126,24 +101,24 @@ def define_issue(key, heiarchy):
                         for sub_sub_sub_key in heiarchy[key][sub_key][sub_sub_sub_key].keys():
                             body += f"\t\t- [ ] {sub_sub_sub_key}\n"
 
-    body += """\nFirst pass implementation means that all (valid) keys used in vanilla files either:
-        * Have full working implementations OR
-        * Have working placeholder implementations (eg. simple scalars) with status documented on the tracker OR
-        * Have false positives in a placeholder or incomplete implementation that properly covers the majority of use cases. OR
-        * Have false positives or are unimplementable due to bugs or missing features in cwtools core
+    body += \
+"""\nFirst pass implementation means that all (valid) keys used in vanilla files either:
+- Have full working implementations OR
+- Have working placeholder implementations (eg. simple scalars) with status documented on the tracker OR
+- Have false positives in a placeholder or incomplete implementation that properly covers the majority of use cases. OR
+- Have false positives or are unimplementable due to bugs or missing features in cwtools core
         
-        Additionally, before this issue can be closed, please make sure of the following:
-            * All significant TODO items are documented in the issue tracker
-            * Documentation strings are either present or documented as missing in the tracker
+Additionally, before this issue can be closed, please make sure of the following:
+- All significant TODO items are documented in the issue tracker
+- Documentation strings are either present or documented as missing in the tracker
         
-        That being said, these are just the criteria for this issue and scope item to be considered finished. In these
-        early days, every new definition is incredibly helpful for end users trying to use cwtools! _Please feel more
-        than free to submit partial implementations for this scope item!_\n
-        """
+That being said, these are just the criteria for this issue and scope item to be considered finished. In these early days, every new definition is incredibly helpful for end users trying to use cwtools! PRs with partial implementations are more than welcome!\n
+"""
 
-    body += "\n**This is an auto-generated issue.** It may make sense to close this ticket, or split it into smaller" \
-            " chunks."
-    print(body)
+    body += "\n**This is an auto-generated issue.** It may make sense to close this ticket, combine it with others, " \
+            "or split it into smaller chunks."
+    return { 'title' : title,
+             'body' : body }
 
 if __name__ == '__main__':
     g = Github(os.environ['GH_API_KEY'])
@@ -157,11 +132,12 @@ if __name__ == '__main__':
                                        folder_exclude_filter=('localization', 'gfx', 'tools', 'gui'),
                                        file_ext_exclude_filter=('.gui', '.font', 'yml', '.shortcuts'),
                                        file_name_exclude_filter=('achievement_groups.txt')))
-    # folders = list(set([folder[1] for folder in folders]))
 
-    # print(f)
     heiarch = create_heiarchy(folders)
+    issues = list()
     for top_level in heiarch.keys():
-        define_issue(top_level,heiarch)
-    #define_issue('religion',heiarch)
-    #print(json.dumps(heiarch, sort_keys=True, indent=4, separators=(',', ': ')))
+        issues.append(define_issue(top_level,heiarch))
+
+    for issue in issues:
+        print(repo.create_issue(title=issue['title'], body = issue['body'], labels=['new definitions','autogenerated']))
+        sleep(10) # Go slowly so we don't get rate limited and so we can stop things if things go awry
